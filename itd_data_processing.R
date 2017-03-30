@@ -8,7 +8,8 @@ rm(list = ls())
 
 # Global Opts
 options(digits = 10)
-dataDIR  <- "E:/Attlas_aerosample/fraser_sample_cpts/NRM"
+# dataDIR  <- "E:/Attlas_aerosample/fraser_sample_cpts/NRM"
+dataDIR  <- "C:/Users/Home/Dropbox/ITD"
 dataLAS  <- "Area3_lidar.laz"
 file.out <- "Tree_Detection_with_DBSCAN.csv"
 canopyRD <- "filtered_canopy.rd"
@@ -26,6 +27,7 @@ library(tidyverse)
 # Source External files
 sourceCpp(cppFile)
 source("auxillary.R")
+source("kdtree.R")
 
 
 # Import dataset
@@ -55,6 +57,7 @@ test <- lasfilter(las, Classification %in% c(2, 5),
     mutate(Wt = Intensity / max(Intensity))
 
 rm(list = "las")
+gc()
 
 
 # Calculate some statistics usefull for cleaning the data, Re-classify stem returns as medium 
@@ -65,16 +68,26 @@ test    <- mutate(test, Type = ifelse((Z < stem.ht) & (Type != 2), 4, Type))
 
 
 
-ground.points    <- which(test$Type == 2)
-stem.points      <- which(test$Type == 4)
-slice(test, c(ground.points, stem.points)) %>%
+# Remove ground points that are too close to the tree, based on the average
+# distance between each stem point and the nearest ground point.
+stem.points   <- dplyr::filter(test, Type == 4) %>% 
     select(X, Y) %>% 
-    data.matrix %>% 
-    kNNdist(k = 1) %>%
-    as.numeric %>%
-    kNN_histogram()
+    as.matrix
+ground.points <- dplyr::filter(test, Type == 2) %>% 
+    select(X, Y) %>% 
+    as.matrix %>%
+    kdtree
 
-
+stem.ground.prof <- apply(stem.points, 1, kNN, ground.points)
+stem.buff   <- map_dbl(stem.ground.prof, function(x) x$dist) %>% mean
+idxRmGround <- map_int(stem.ground.prof, function(x) {
+    if(x$dist < stem.buff){
+        x$id
+    } else {
+        NA_integer_
+    }
+}) %>% na.omit %>% which(test$Type == 2)[.]
+test <- slice(test, -idxRmGround)
 
 
 ### Filter canopy points which we can be confident are not at the tree location.
@@ -93,8 +106,8 @@ ground.dist.nn <- dplyr::filter(test, Type == 2) %>%
     as.numeric 
 kNN_histogram(ground.dist.nn, xlab = "Distance to nearest-neighbour")
 
-dR        <- 0.619
-test.copy <- thin_canopy(test, dR)
+ground.buff <- 0.549
+test.copy   <- thin_canopy(test, ground.buff)
 
 
 dplyr::filter(test.copy, Type != 2) %>%
@@ -103,13 +116,17 @@ dplyr::filter(test.copy, Type != 2) %>%
 
 
 # Compare heatmaps
+jpeg(filename = "canopy_before_filter.jpeg")
 test %>% 
     dplyr::filter(X < 479650, Y > 7124550) %>% 
     with(heatscatter(X, Y))
+dev.off()
 
+jpeg(filename = "canopy_after_filter.jpeg")
 test.copy %>% 
     dplyr::filter(X < 479650, Y > 7124550) %>% 
     with(heatscatter(X, Y))
+dev.off()
 
 
 # examine the number of points in each cluster
@@ -118,7 +135,7 @@ dplyr::filter(test.copy, X < 479650, Y > 7124550) %>%
 
 test.copy %>% 
     dplyr::filter(Type == 4, X < 479650, Y > 7124550) %>% 
-    with(symbols(x = X, y = Y, circles = rep(2*dR, length(X)), 
+    with(symbols(x = X, y = Y, circles = rep(2*ground.buff, length(X)), 
                  inches = FALSE, fg = "red", add = TRUE))
 
 

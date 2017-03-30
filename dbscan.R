@@ -8,7 +8,7 @@ rm(list = ls())
 
 # Global Opts
 options(digits = 10)
-file.out <- "Tree_Detection_filtered_canopy_2.csv"
+file.out <- "Tree_Detection_filtered_canopy.csv"
 canopyRD <- "filtered_canopy.rd"
 
 
