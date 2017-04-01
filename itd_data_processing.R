@@ -68,26 +68,26 @@ test    <- mutate(test, Type = ifelse((Z < stem.ht) & (Type != 2), 4, Type))
 
 
 
-# Remove ground points that are too close to the tree, based on the average
-# distance between each stem point and the nearest ground point.
-stem.points   <- dplyr::filter(test, Type == 4) %>% 
-    select(X, Y) %>% 
-    as.matrix
-ground.points <- dplyr::filter(test, Type == 2) %>% 
-    select(X, Y) %>% 
-    as.matrix %>%
-    kdtree
-
-stem.ground.prof <- apply(stem.points, 1, kNN, ground.points)
-stem.buff   <- map_dbl(stem.ground.prof, function(x) x$dist) %>% mean
-idxRmGround <- map_int(stem.ground.prof, function(x) {
-    if(x$dist < stem.buff){
-        x$id
-    } else {
-        NA_integer_
-    }
-}) %>% na.omit %>% which(test$Type == 2)[.]
-test <- slice(test, -idxRmGround)
+# # Remove ground points that are too close to the tree, based on the average
+# # distance between each stem point and the nearest ground point.
+# stem.points   <- dplyr::filter(test, Type == 4) %>% 
+#     select(X, Y) %>% 
+#     as.matrix
+# ground.points <- dplyr::filter(test, Type == 2) %>% 
+#     select(X, Y) %>% 
+#     as.matrix %>%
+#     kdtree
+# 
+# stem.ground.prof <- apply(stem.points, 1, kNN, ground.points)
+# stem.buff   <- map_dbl(stem.ground.prof, function(x) x$dist) %>% mean
+# idxRmGround <- map_int(stem.ground.prof, function(x) {
+#     if(x$dist < stem.buff){
+#         x$id
+#     } else {
+#         NA_integer_
+#     }
+# }) %>% na.omit %>% which(test$Type == 2)[.]
+# test <- slice(test, -idxRmGround)
 
 
 ### Filter canopy points which we can be confident are not at the tree location.
